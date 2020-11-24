@@ -1,5 +1,5 @@
 import json
-import joblib
+
 import shutil
 import numpy as np
 import os.path as osp, time, atexit, os
@@ -67,81 +67,36 @@ color2num = dict(
     crimson=38
 )
 
-from mpi4py import MPI
+
 import os, subprocess, sys
 import numpy as np
 
 
-def mpi_fork(n, bind_to_core=False):
-    """
-    Re-launches the current script with workers linked by MPI.
-
-    Also, terminates the original process that launched it.
-
-    Taken almost without modification from the Baselines function of the
-    `same name`_.
-
-    .. _`same name`: https://github.com/openai/baselines/blob/master/baselines/common/mpi_fork.py
-
-    Args:
-        n (int): Number of process to split into.
-
-        bind_to_core (bool): Bind each MPI process to a core.
-    """
-    if n <= 1:
-        return
-    if os.getenv("IN_MPI") is None:
-        env = os.environ.copy()
-        env.update(
-            MKL_NUM_THREADS="1",
-            OMP_NUM_THREADS="1",
-            IN_MPI="1"
-        )
-        args = ["mpirun", "-np", str(n)]
-        if bind_to_core:
-            args += ["-bind-to", "core"]
-        args += [sys.executable] + sys.argv
-        subprocess.check_call(args, env=env)
-        sys.exit()
 
 
-def msg(m, string=''):
-    print(('Message from %d: %s \t ' % (MPI.COMM_WORLD.Get_rank(), string)) + str(m))
 
 
-def proc_id():
-    """Get rank of calling process."""
-    return MPI.COMM_WORLD.Get_rank()
 
 
-def allreduce(*args, **kwargs):
-    return MPI.COMM_WORLD.Allreduce(*args, **kwargs)
 
 
-def num_procs():
-    """Count active MPI processes."""
-    return MPI.COMM_WORLD.Get_size()
 
 
-def broadcast(x, root=0):
-    MPI.COMM_WORLD.Bcast(x, root=root)
+
 
 
 def mpi_op(x, op):
     x, scalar = ([x], True) if np.isscalar(x) else (x, False)
     x = np.asarray(x, dtype=np.float32)
     buff = np.zeros_like(x, dtype=np.float32)
-    allreduce(x, buff, op=op)
+
     return buff[0] if scalar else buff
 
 
-def mpi_sum(x):
-    return mpi_op(x, MPI.SUM)
 
 
-def mpi_avg(x):
-    """Average a scalar or vector over MPI processes."""
-    return mpi_sum(x) / num_procs()
+
+
 
 
 def mpi_statistics_scalar(x, with_min_and_max=False):
@@ -156,15 +111,15 @@ def mpi_statistics_scalar(x, with_min_and_max=False):
             addition to mean and std.
     """
     x = np.array(x, dtype=np.float32)
-    global_sum, global_n = mpi_sum([np.sum(x), len(x)])
+    global_sum, global_n = ([np.sum(x), len(x)])
     mean = global_sum / global_n
 
-    global_sum_sq = mpi_sum(np.sum((x - mean) ** 2))
+    global_sum_sq =(np.sum((x - mean) ** 2))
     std = np.sqrt(global_sum_sq / global_n)  # compute global std
 
     if with_min_and_max:
-        global_min = mpi_op(np.min(x) if len(x) > 0 else np.inf, op=MPI.MIN)
-        global_max = mpi_op(np.max(x) if len(x) > 0 else -np.inf, op=MPI.MAX)
+        global_min = (np.min(x) if len(x) > 0 else np.inf)
+        global_max = (np.max(x) if len(x) > 0 else -np.inf)
         return mean, std, global_min, global_max
     return mean, std
 def colorize(string, color, bold=False, highlight=False):
@@ -253,25 +208,8 @@ class Logger:
     """
 
     def __init__(self, output_dir=None, output_fname='progress.txt', exp_name=None):
-        """
-        Initialize a Logger.
 
-        Args:
-            output_dir (string): A directory for saving results to. If
-                ``None``, defaults to a temp directory of the form
-                ``/tmp/experiments/somerandomnumber``.
 
-            output_fname (string): Name for the tab-separated-value file
-                containing metrics logged throughout a training run.
-                Defaults to ``progress.txt``.
-
-            exp_name (string): Experiment name. If you run multiple training
-                runs and give them all the same ``exp_name``, the plotter
-                will know to group them. (Use case: if you run the same
-                hyperparameter configuration with multiple random seeds, you
-                should give them all the same ``exp_name``.)
-        """
-        if proc_id() == 0:
             self.output_dir = output_dir or "/tmp/experiments/%i" % int(time.time())
             if osp.exists(self.output_dir):
                 print("Warning: Log dir %s already exists! Storing info there anyway." % self.output_dir)
@@ -280,18 +218,16 @@ class Logger:
             self.output_file = open(osp.join(self.output_dir, output_fname), 'w')
             atexit.register(self.output_file.close)
             print(colorize("Logging data to %s" % self.output_file.name, 'green', bold=True))
-        else:
-            self.output_dir = None
-            self.output_file = None
-        self.first_row = True
-        self.log_headers = []
-        self.log_current_row = {}
-        self.exp_name = exp_name
+
+            self.first_row = True
+            self.log_headers = []
+            self.log_current_row = {}
+            self.exp_name = exp_name
 
     def log(self, msg, color='green'):
         """Print a colorized message to stdout."""
-        if proc_id() == 0:
-            print(colorize(msg, color, bold=True))
+
+        print(colorize(msg, color, bold=True))
 
     def log_tabular(self, key, val):
         """
@@ -328,11 +264,11 @@ class Logger:
         config_json = convert_json(config)
         if self.exp_name is not None:
             config_json['exp_name'] = self.exp_name
-        if proc_id() == 0:
-            output = json.dumps(config_json, separators=(',', ':\t'), indent=4, sort_keys=True)
-            print(colorize('Saving config:\n', color='cyan', bold=True))
-            print(output)
-            with open(osp.join(self.output_dir, "config.json"), 'w') as out:
+
+        output = json.dumps(config_json, separators=(',', ':\t'), indent=4, sort_keys=True)
+        print(colorize('Saving config:\n', color='cyan', bold=True))
+        print(output)
+        with open(osp.join(self.output_dir, "config.json"), 'w') as out:
                 out.write(output)
 
     def save_state(self, state_dict, itr=None):
@@ -356,12 +292,7 @@ class Logger:
 
             itr: An int, or None. Current iteration of training.
         """
-        if proc_id() == 0:
-            fname = 'vars.pkl' if itr is None else 'vars%d.pkl' % itr
-            try:
-                joblib.dump(state_dict, osp.join(self.output_dir, fname))
-            except:
-                self.log('Warning: could not pickle state_dict.', color='red')
+        pass
 
     def setup_tf_saver(self, sess, inputs, outputs):
         """
@@ -389,12 +320,8 @@ class Logger:
 
 
     def dump_tabular(self):
-        """
-        Write all of the diagnostics from the current iteration.
 
-        Writes both to stdout, and to the output file.
-        """
-        if proc_id() == 0:
+
             vals = []
             key_lens = [len(key) for key in self.log_headers]
             max_key_len = max(15, max(key_lens))
@@ -413,8 +340,8 @@ class Logger:
                     self.output_file.write("\t".join(self.log_headers) + "\n")
                 self.output_file.write("\t".join(map(str, vals)) + "\n")
                 self.output_file.flush()
-        self.log_current_row.clear()
-        self.first_row = False
+            self.log_current_row.clear()
+            self.first_row = False
 
 
 class EpochLogger(Logger):
