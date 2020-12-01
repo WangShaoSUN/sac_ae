@@ -46,8 +46,19 @@ class Trainer:
         # Initialize the environment and set up the algorithm.
         state = self.env.reset()
         self.algo.reset(state)
-
+        self.initial_collection_steps = 10 ** 4
+        bar1 = tqdm(range(self.initial_collection_steps + 1))
         # Iterate until environment step reaches 'num_steps'.
+        for step in bar1:
+            # print(step)
+            state, t = self.algo.step(self.env, state, t, step)
+        self.initial_learning_steps = (10**5)
+        bar = tqdm(range(self.initial_learning_steps))
+        for _ in bar:
+            bar.set_description("Updating latent variable model.")
+            states, actions, rewards, dones, next_states = \
+                self.algo.buffer.sample(self.algo.batch_size)
+            self.algo.update_ae(states)
         for steps in range(1, self.num_steps // self.action_repeat + 1):
 
             # Pass to the algorithm to update state and episode timestep.
@@ -58,7 +69,7 @@ class Trainer:
                 self.algo.update()
 
             # Evaluate regularly.
-            if steps % self.eval_interval == 0:
+            if steps % 500 == 0:
                 self.evaluate(steps)
 
     def evaluate(self, steps):
